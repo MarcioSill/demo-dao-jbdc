@@ -4,6 +4,7 @@ import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
+import java.sql.Statement;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -16,18 +17,52 @@ import model.entities.Department;
 import model.entities.Seller;
 
 public class SellerDaoJDBC implements SellerDao{
-	
+	// acessoa ao banco de dados
 	private Connection conn;
-	
+	//injeção de depedencia força a comunicação ao banco de dados
 	public SellerDaoJDBC(Connection conn) {
 		this.conn = conn;
 	}
 
 	@Override
 	public void insert(Seller obj) {
-		// TODO Auto-generated method stub
+		PreparedStatement st = null;
+		try {
+			st = conn.prepareStatement(
+					"INSERT INTO seller "
+					+ "(Name, Email, BirthDate, BaseSalary, DepartmentId) "
+					+ "VALUES "
+					+ "(?, ?, ?, ?, ?)",
+					Statement.RETURN_GENERATED_KEYS); //retorna o id do vendedor incerido
+			st.setString(1, obj.getName());  //(enqual ?, nome recebido pelo obj) acrescentar o nome do vendedor
+			st.setString(2, obj.getEmail()); // acrescenta o email
+			st.setDate(3, new java.sql.Date(obj.getBirthDate().getTime())); //acrescenta a data de nascimento
+			st.setDouble(4, obj.getBaseSalary()); //acrescenta o salario
+			st.setInt(5, obj.getDepartment().getId()); // acrescenta o id do departamento 
+			
+			int rowsAffected = st.executeUpdate();
+			
+			if(rowsAffected > 0) {
+				ResultSet rs = st.getGeneratedKeys();
+				if(rs.next()) {
+					int id = rs.getInt(1);
+					obj.setId(id);
+				}
+				DB.closeResultSet(rs);
+			}
+			else {
+				throw new DbException("Unexpected error! No rows affected!");
+			}
+		}
+		catch(SQLException e) {
+			throw new DbException(e.getMessage());
+		}
 		
+		finally {
+			DB.closeStatement(st);
+		}
 	}
+	
 
 	@Override
 	public void update(Seller obj) {
@@ -53,12 +88,10 @@ public class SellerDaoJDBC implements SellerDao{
 					+" WHERE seller.Id = ?");
 			st.setInt(1, id);
 			rs = st.executeQuery();
-			if (rs.next()) {
+			if (rs.next()) { //testa se veio algum resultado
 				Department dep = instantiateDepartment(rs);
 				Seller obj = instantiateSeller(rs, dep);
-				return obj;
-				
-				
+				return obj;				
 			}
 			return null;
 			
@@ -73,7 +106,7 @@ public class SellerDaoJDBC implements SellerDao{
 		}
 		
 	}
-
+   //metodo responsavel por selecionar o obj.
 	private Seller instantiateSeller(ResultSet rs, Department dep) throws SQLException {
 		Seller obj = new Seller();
 		obj.setId(rs.getInt("Id"));
